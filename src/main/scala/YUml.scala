@@ -12,8 +12,8 @@ def draw[E[+X] <: EdgeLikeIn[X]](g: Graph[Resource, E]): String =
   g.edges
   .map(e => s"[${e._1.name}]${e.label
     match
-      case ManyToOne => "*-1" 
-      case OneToMany => "1-*"
-      case OneToOne => "1-1"
+      case ManyToOne(_) => "*-1" 
+      case OneToMany(_) => "1-*"
+      case OneToOne(_) => "1-1"
       case _ => "-"}${if e.isDirected then ">" else ""}[${e._2.name}]")
   .mkString("\n")

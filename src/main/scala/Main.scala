@@ -16,8 +16,8 @@ object Main {
 
     val g = Graph(
       (a ~+# b)(ManyToOne(Attribute("b_id"))), 
-      (b ~+# c)(OneToOne(Attribute("c_id"))),  
-      (b ~+# d)(ManyToOne(Attribute("d_id"))))
+      (b ~+# c)(ManyToOne(Attribute("c_id"))),  
+      (b ~+# d)(OneToMany(Attribute("b_id"))))
 
 
     val yUml = YUml.draw(g)
@@ -30,13 +30,11 @@ object Main {
 
     {
       import scalax.collection.edge.Implicits.any2XEdgeAssoc
+      import SQL.{given _}
 
       val paths = List((g get a).pathTo(g get c).get.edges.toList, (g get a).pathTo(g get d).get.edges.toList)
-      Console.println(paths)
 
       val p = SQL.query(g, paths)
-
-      //find all unique edges leaving a
 
       Console.println(p)
     }
