@@ -30,9 +30,11 @@ object Main {
 
     {
       import scalax.collection.edge.Implicits.any2XEdgeAssoc
-      import SQL.{given _}
 
-      val paths = List((g get a).pathTo(g get c).get.edges.toList, (g get a).pathTo(g get d).get.edges.toList)
+      val start = a
+      val points = List(c,d)
+
+      val paths = points.map(p => (g get start).pathTo(g get p).get.edges.toList)
 
       val p = SQL.query(g, paths)
 
