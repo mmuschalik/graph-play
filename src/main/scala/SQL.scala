@@ -37,23 +37,30 @@ def queryWhere[E[+X] <: EdgeLikeIn[X]](g: Graph[Resource, E], paths: List[List[g
         match
           case ManyToOne(m) => {
             val q = queryWhere(g, list, Query(SelectList("*"), TableExpression(TableName(s"${edge._2.name}"), None))) //.appendJoin(s" JOIN ${edge._2.name} ON (${edge._2.name}.${edge._2.identity.name} = ${edge._1.name}.${m.name})")
-            (getJoin(q), getWhere(q))
+            (getJoin(query, q, JoinCondition(s"${edge._1.name}.${m.name}", s"${edge._2.name}.${edge._2.identity.name}")), getWhere(q))
           }
           case OneToMany(m) => 
             (None, Some(WhereClause(InClause(s"${edge._1.name}.${edge._2.identity.name}", queryWhere(g, list, Query(SelectList(s"${edge._2.name}.${m.name}"), TableExpression(TableName(s"${edge._2.name}"), None)))) :: Nil)))))
   
-    val js = qs.flatMap(q => q._1.toList).fold(query.tableExpression.tableReference)((a, b) => Join(a, b, b 
+    val js = qs.flatMap(q => q._1.toList).toList
       match
-        case Join(_, _, c) => c
-        case _ => None)) // fix None
+        case Nil => query.tableExpression.tableReference
+        case v :: Nil => v
+        case l => l.reduce((a, b) => Join(a, b, b 
+          match
+            case Join(_, _, c) => c
+            case _ => None)) // fix None
     
-    val ws = WhereClause(query.tableExpression.where.toList.flatMap(x => x.clauses) ++ qs.toList.flatMap(q => q._2.toList.flatMap(x => x.clauses)))
+    val ws = listToOptionList(query.tableExpression.where.toList.flatMap(x => x.clauses) ++ qs.toList.flatMap(q => q._2.toList.flatMap(x => x.clauses)))
     
-    Query(query.selectList, TableExpression(js, Some(ws)))
+    Query(query.selectList, TableExpression(js, ws.map(WhereClause(_))))
 
-def getJoin(query: Query): Option[TableReference] = Some(query.tableExpression.tableReference)
+def getJoin(left: Query, right: Query, condition: JoinCondition): Option[TableReference] = Some(Join(left.tableExpression.tableReference, right.tableExpression.tableReference, Some(condition)))
 
 def getWhere(query: Query): Option[WhereClause] = query.tableExpression.where
+
+def listToOptionList[A](list: List[A]) = if list.isEmpty then None else Some(list)
+
 
 case class Query(selectList: SelectList, tableExpression: TableExpression)
 case class SelectList(list: String)
@@ -72,10 +79,18 @@ trait Show[A] {
 }
 
 given tableReferenceShow as Show[TableReference]() {
-  def show(a: TableReference): String = a
+  def show(a: TableReference): String = (listTableReferences(a) zip ("" :: listConditions(a))).map(_ + _).mkString(" JOIN ")
+
+  def listTableReferences(a: TableReference): List[String] = a
     match
-      case TableName(n) => n
-      case Join(t1, t2, c) => show(t1) + " JOIN " + show(t2) + c.fold("")(x => x.left + " = " + x.right)
+      case t: TableName => t.tableName :: Nil
+      case Join(t1, t2, c) => listTableReferences(t1) ++  listTableReferences(t2)
+        
+  def listConditions(a: TableReference): List[String] = a
+    match
+      case t: TableName => Nil
+      case Join(t1, t2, c) => listConditions(t1) ++ c.map(x => " ON (" + x.left + " = " + x.right + ")").toList ++  listConditions(t2)
+
 }
 
 given tableExpressionShow as Show[TableExpression] {
